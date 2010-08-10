@@ -1,0 +1,17 @@
+This is a mirror of http://www.vim.org/scripts/script.php?script_id=3184
+
+This plugin provides the ability to autoload plugins on demand, create 
+global functions and commands and extend mksession with plugin support.
+
+Features:
+    â Autoloading plugins on FuncUndefined event.
+    â Autoloading plugins when their command is called.
+    â Autoloading plugins when their mapping is used.
+    â Autoloading plugins when their functionality is required.
+    â Displaying plugins' status.
+    â Unloading and reloading plugins (useful for plugin developers).
+    â Searching for a function number through registered plugins.
+    â Checking function arguments before running a function.
+    â Create a session file with plugin's data.
+
+Documentation: http://kp-pav.narod2.ru/vim/doc/load.txt.html
