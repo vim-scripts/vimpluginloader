@@ -950,7 +950,9 @@ function s:F.comm.cmdadd(key, value, cmdargs, plugdict, command)
         let realname=funcname.(a:command)
         let append=a:command
         " шаблон для автокоманды
-        let fpattern="*P".(s:g.scriptid)."_".realname[2:]
+        " // Vim 7.2: starts with P<scriptid>
+        " // Vim 7.3: starts with R<scriptid> => removed P, not adding R
+        let fpattern="*".(s:g.scriptid)."_".realname[2:]
         "{{{5 Если дополнение загружено
         if a:plugdict.status==#"loaded"
             "{{{6 Создание функции
@@ -1553,7 +1555,7 @@ let s:g.reginfo=s:F.reg.register({
             \   "scriptfile": s:g.load.scriptfile,
             \      "oneload": 1,
             \"dictfunctions": s:g.comm.f,
-            \   "apiversion": "0.1",
+            \   "apiversion": "0.2",
         \})
 lockvar! s:g.reginfo
 let s:F.main.eerror=s:g.reginfo.functions.eerror
