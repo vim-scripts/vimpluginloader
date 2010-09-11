@@ -88,11 +88,11 @@ options in g:loadOptions dictionary (Note that it is a very bad idea).
 :LoadCommand autocmd {event} {plugin} {command}        *load-action-autocmd*
             Create an `autocommand', see |load-autocommands|. For 
             a description of arguments see |load-func-autocmd|. Note that you 
-            need to escape all spaces in {command}.
+            need to escape a backslash in {command}.
 :LoadCommand autocmd! {event}[ {plugin}[ {command}]]  *load-action-autocmd!*
             Delete an `autocommand', see |load-autocommands|. For 
             a description of arguments see |load-func-delautocmd|. Note that 
-            you need to escape all spaces in {command}.
+            you need to escape a backslash in {command}.
 
 -----------------------------------------------------------------------------
 2.2. Functions                                              *load-functions*

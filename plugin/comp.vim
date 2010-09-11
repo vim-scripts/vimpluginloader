@@ -52,9 +52,9 @@ elseif !exists("s:g.pluginloaded")
                 \          "sid": s:g.scriptid,
                 \   "scriptfile": s:g.load.scriptfile,
                 \"dictfunctions": s:g.chk.f,
-                \   "apiversion": "0.1",
+                \   "apiversion": "0.2",
                 \     "requires": [["load", '0.0'],
-                \                  ["chk",  '0.0'],
+                \                  ["chk",  '0.3'],
                 \                  ["stuf", '0.0']],
             \})
     let s:F.main.eerror=s:g.reginfo.functions.eerror
@@ -139,26 +139,33 @@ function s:F.mod.pref(comp, s)
     endif
     return []
 endfunction
+"{{{3 mod.words
+function s:F.mod.words(comp, s)
+    if has_key(a:comp, "words")
+        return s:F.comp.getlist(a:comp.words, a:s.arguments[-1])
+    endif
+    return []
+endfunction
 "{{{2 comp
 "{{{3 comp.getlist
 function s:F.comp.getlist(descr, arglead)
-    let [type, Arg]=a:descr
+    let [type, l:Arg]=a:descr
     if type==#"merge"
         let result=[]
-        for descr in Arg
+        for descr in l:Arg
             let result+=s:F.comp.getlist(descr, a:arglead)
         endfor
         return result
     elseif type==#"file"
         return s:F.comp.getfiles(a:arglead,
                     \["v:val=~?a:filter[1]",
-                    \ s:F.plug.stuf.regescape(Arg).'$'])
+                    \ s:F.plug.stuf.regescape(l:Arg).'$'])
     elseif type==#"file!"
         return s:F.comp.getfiles(a:arglead,
                     \['s:F.plug.chk.checkargument(a:filter[1], v:val)',
-                    \ Arg])
+                    \ l:Arg])
     elseif type==#"first"
-        for descr in Arg
+        for descr in l:Arg
             let result=s:F.comp.getlist(descr, a:arglead)
             if result!=[]
                 return result
@@ -173,9 +180,9 @@ endfunction
 "{{{4 s:g.comp.list
 let s:g.comp={}
 let s:g.comp.list={
-            \"func": "call(Arg, [a:arglead], {})",
-            \"list": "Arg",
-            \"keyof": "keys(Arg)",
+            \"func": "call(l:Arg, [a:arglead], {})",
+            \"list": "l:Arg",
+            \"keyof": "keys(l:Arg)",
         \}
 "{{{3 comp.getfiles
 function s:F.comp.getfiles(arglead, filter)
@@ -215,7 +222,8 @@ function s:F.comp.recdownglob(globstart, fragments, i, escapedfragments)
                     \   (join(a:escapedfragments[:(a:i-1)],
                     \         '/')):
                     \   (""))
-        if fstart!=#""
+        let fcur=a:escapedfragments[a:i]
+        if fstart!=#"" && fstart[-1:]!=#"/"
             let fstart.="/"
         endif
         for gexpr in s:g.comp.rg.glistexpr
@@ -299,15 +307,31 @@ function s:F.comp.toarglead(arglead, list)
     return []
 endfunction
 "{{{3 comp.split
-function s:F.comp.split(arglead, cmdline, position)
+function s:F.comp.split(arglead, cmdline, position, input)
     let r={"origin": [a:cmdline, a:arglead, a:position]}
-    let r.cmd=a:cmdline[:(a:position)]
-    let r.range=matchstr(r.cmd, '^'.s:g.reg.range)
-    let r.cmd=r.cmd[len(r.range):]
-    let r.command=matchstr(r.cmd, '^\(\u[[:alnum:]_]*\)!\=')
-    let r.cmd=r.cmd[len(r.command):]
-    let r.arguments=split(r.cmd)
-    if a:arglead==#""
+    if !a:input
+        let r.cmd=a:cmdline[:(a:position)]
+        let r.range=matchstr(r.cmd, '^'.s:g.reg.range)
+        let r.cmd=r.cmd[len(r.range):]
+        let r.command=matchstr(r.cmd, '^\(\u[[:alnum:]_]*\)!\=')
+        let r.cmd=r.cmd[len(r.command):]
+    else
+        let r.cmd=a:cmdline
+        let r.range=""
+        let curwordstart=matchstr(a:cmdline[:(a:position-1)], '\(\\.\|[^ ]\)*$')
+        let curwordend=matchstr(a:cmdline, '^\(\\.\|[^ ]\)*', a:position)
+        let curword=curwordstart.curwordend
+        let start=a:position-len(curwordstart)
+        let end=a:position+len(curwordend)-1
+        let r.cmd=r.cmd[:(end)]
+        if start
+            let r.prefix=r.cmd[:(start-1)]
+        else
+            let r.prefix=""
+        endif
+    endif
+    let r.arguments=split(r.cmd, '\(\\\@<!\(\\.\)*\\\)\@<! ')
+    if (a:input && empty(curword)) || (!a:input && empty(a:arglead))
         call add(r.arguments, '')
     endif
     return r
@@ -329,8 +353,18 @@ let s:g.reg.range='\(%\|'.
             \     '\)\='
 "{{{3 comp.main
 function s:F.comp.main(comp, arglead, cmdline, position)
-    let s=s:F.comp.split(a:arglead, a:cmdline, a:position)
-    return s:F.mod[a:comp.model](a:comp, s)
+    let model=a:comp.model
+    let input=0
+    if model[:4]==#'input'
+        let model=model[5:]
+        let input=1
+    endif
+    let s=s:F.comp.split(a:arglead, a:cmdline, a:position, input)
+    let r=s:F.mod[model](a:comp, s)
+    if input
+        call map(r, 's.prefix . v:val')
+    endif
+    return r
 endfunction
 "{{{4 Проверки
 let s:g.chk.alist=["alllst",]
@@ -339,9 +373,9 @@ let s:g.chk.list=["and", [["len", [2]],
             \             ["or", [["chklst", [["equal", "merge"],
             \                                 s:g.chk.alist]],
             \                     ["chklst", [["equal", "func"],
-            \                                 ["type", 2]]],
+            \                                 ["isfunc", 0]]],
             \                     ["chklst", [["equal", "func!"],
-            \                                 ["type", 2]]],
+            \                                 ["isfunc", 0]]],
             \                     ["chklst", [["equal", "list"],
             \                                 ["alllst", ["type", type("")]]]],
             \                     ["chklst", [["equal", "file"],
@@ -356,11 +390,13 @@ call add(s:g.chk.alist, s:g.chk.list)
 let s:g.chk.pref=["dict", [[["any", ""], s:g.chk.list]]]
 let s:g.chk.model=["and",]
 let s:g.chk.actions=["dict", [[["any", ""], s:g.chk.model]]]
+let s:g.chk.modcheck=["in", keys(s:F.mod)+map(keys(s:F.mod), '"input".v:val')]
 call add(s:g.chk.model,  [["hkey", "model"],
-            \             ["dict", [[["equal", "model"], ["keyof", s:F.mod]],
+            \             ["dict", [[["equal", "model"], s:g.chk.modcheck],
             \                       [["equal", "actions"], s:g.chk.actions],
             \                       [["equal", "arguments"], s:g.chk.alist],
-            \                       [["equal", "prefix"], s:g.chk.pref]]]])
+            \                       [["equal", "prefix"], s:g.chk.pref],
+            \                       [["equal", "words"], s:g.chk.list]]]])
 let s:g.chk.f[0][2].required[1]=s:g.chk.model
 "{{{2 out
 "{{{3 out.constructcompletion
