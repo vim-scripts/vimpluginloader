@@ -20,6 +20,7 @@ let s:F={
             \"maps": {},
             \ "int": {},
             \  "au": {},
+            \ "ses": {},
         \}
 lockvar 1 s:F
 "{{{3 Глобальная переменная
@@ -28,7 +29,6 @@ let s:g.c={}
 let s:g.load={}
 let s:g.pluginloaded=1
 let s:g.load.scriptfile=expand("<sfile>")
-let s:g.srccmd="source ".(s:g.load.scriptfile)
 "{{{4 sid
 function s:SID()
     return matchstr(expand('<sfile>'), '\d\+\ze_SID$')
@@ -96,6 +96,12 @@ let s:g.p={
             \   "minap": "Minor api version mismatch (%s required by %s): ".
             \            "%u<%u",
             \    "nreq": "Failed to load dependencies for plugin %s",
+            \   "sesdw": "Unable to write to directory %s that contains ".
+            \            "session file",
+            \   "sesfx": "Unable to overwrite %s file",
+            \   "sesnf": "Failed to create session file",
+            \   "yamlf": "Failed to load yaml plugin",
+            \    "sesr": "While restoring a session, failed to load plugin %s",
             \},
             \"etype": {
             \    "value": "InvalidValue",
@@ -460,7 +466,7 @@ function s:F.stuf.fdictstr(dict, indent)
     endfor
     return result
 endfunction
-"{{{2 main: eerror, destruct
+"{{{2 main: eerror, destruct, session
 "{{{3 main.destruct: Выгрузить дополнение
 function s:F.main.destruct()
     for f in keys(s:F.int)
@@ -472,6 +478,36 @@ function s:F.main.destruct()
     unlet s:F
     unlet s:g
     return 1
+endfunction
+"{{{3 main.session
+function s:F.main.session(...)
+    if empty(a:000)
+        let r={}
+        for [plugname, plugdict] in items(s:g.reg.registered)
+            let r[plugname]={
+                        \"status": plugdict.status,
+                    \}
+        endfor
+        return r
+    else
+        let rdict=get(a:000, 0, {})
+        for [plugname, plugopts] in items(rdict)
+            let plugdict=s:F.comm.getpldict(plugname)
+            let curstatus=plugdict.status
+            let status=plugopts.status
+            if curstatus!=#"loaded" && status==#"loaded"
+                call s:F.comm.load(plugname)
+            elseif curstatus==#""
+                call s:F.main.eerror(selfname, "ofail", 1, ["sesr", plugname])
+            endif
+        endfor
+        for plugname in keys(s:g.reg.registered)
+            if !has_key(rdict, plugname) &&
+                        \has_key(s:g.reg.registered, plugname)
+                call s:F.comm.unload(plugname)
+            endif
+        endfor
+    endif
 endfunction
 "{{{2 reg: register, unreg
 "{{{3 s:g.reg
@@ -1312,6 +1348,8 @@ let s:g.comm.f=[
             \["getfunctions",     "comm.getfunctions", s:g.c.tstr],
             \["lazygetfunctions", "comm.lazyload",     s:g.c.tstr],
             \["run",              "comm.run",          {}],
+            \["restoresession", "ses.restore", {"model": "simple",
+            \                                "required": [["file", 'r']]}],
         \]
 lockvar! s:g.comm
 unlockvar! s:g.reg.registered
@@ -1398,7 +1436,7 @@ function s:F.comm.unload(plugname)
     call s:F.au.doevent("UnloadPluginPost", a:plugname)
     return srccmd
 endfunction
-"{{{2 au
+"{{{2 au: regevent, delevent, doau
 "{{{3 s:g.au
 let s:g.au={}
 let s:g.au.events={}
@@ -1464,6 +1502,80 @@ call add(s:g.comm.f,
             \         "optional": [[["type", type("")], {}, ""],
             \                      [["type", type("")], {}, ""]]}])
 lockvar 2 s:g.comm.f
+"{{{2 ses: mksession, loadsession
+"{{{3 ses.mksession
+function s:F.ses.mksession(sfile)
+    let selfname='ses.mksession'
+    try
+        execute "mksession! ".fnameescape(a:sfile)
+    catch
+        return s:F.main.eerror(selfname, "ofail", 1, ["sesnf"], v:exception)
+    endtry
+    let xfile=fnamemodify(a:sfile, ':p:r').'x.vim'
+    if filewritable(fnamemodify(a:sfile, ':p:h'))==2
+        if filereadable(xfile)
+            if !filewritable(xfile)
+                return s:F.main.eerror(selfname, "ofail", 1, ["sesfx", xfile])
+            endif
+            " let sescontent=readfile(xfile, 'b')
+            let sescontent=[]
+        else
+            let sescontent=[]
+        endif
+        let sescontent+=[
+                    \'call load#LoadFuncdict().getfunctions("load").'.
+                    \           'restoresession(expand("<sfile>"))',
+                    \'finish',
+                    \'### YAML document starts here ###',
+                    \]
+        let plses={}
+        for [plugname, plugdict] in items(s:g.reg.registered)
+            if has_key(plugdict.F, "main") && has_key(plugdict.F.main,
+                        \                            "session")
+                let plses[plugname]=plugdict.F.main.session()
+            endif
+        endfor
+        if !(has_key(s:g.reg.registered, "yaml") &&
+                    \s:g.reg.registered.yaml.status==#"loaded")
+            call s:F.comm.load("yaml")
+        endif
+        if !(has_key(s:g.reg.registered, "yaml") &&
+                    \s:g.reg.registered.yaml.status==#"loaded")
+            return s:F.main.eerror(selfname, "ofail", 1, ["yamlf"])
+        endif
+        call extend(sescontent, s:F.plug.yaml.dumps(plses, 0))
+        call add(sescontent, "")
+        call writefile(sescontent, xfile, 'b')
+    else
+        return s:F.main.eerror(selfname, "ofail", 1, ["sesdw",
+                    \                             fnamemodify(a:sfile, ':p:h')])
+    endif
+endfunction
+"{{{3 ses.restore
+function s:F.ses.restore(sfile)
+    let selfname='ses.restore'
+    let sescontent=readfile(a:sfile, 'b')
+    while sescontent[0]!=#'### YAML document starts here ###'
+        call remove(sescontent, 0)
+    endwhile
+    if !(has_key(s:g.reg.registered, "yaml") &&
+                \s:g.reg.registered.yaml.status==#"loaded")
+        call s:F.comm.load("yaml")
+    endif
+    if !(has_key(s:g.reg.registered, "yaml") &&
+                \s:g.reg.registered.yaml.status==#"loaded")
+        return s:F.main.eerror(selfname, "ofail", 1, ["yamlf"])
+    endif
+    let plses=s:F.plug.yaml.loads(join(sescontent, "\n"))
+    for [plugname, arg] in items(plses)
+        let plugdict=s:F.comm.getpldict(plugname)
+        if has_key(plugdict.F, "main") && has_key(plugdict.F.main,
+                    \                            "session")
+            call plugdict.F.main.session(arg)
+        endif
+        unlet arg
+    endfor
+endfunction
 "{{{2 mng: main
 "{{{3 mng.main
 "{{{4 s:g.c.cmd
@@ -1492,6 +1604,8 @@ let s:g.c.cmd.actions["autocmd!"]={"model": "optional",
             \                   "optional": [[["keyof", s:g.reg.registered],
             \                                 {}, 0]],
             \                       "next": ["type", type("")]}
+let s:g.c.cmd.actions.mksession={"model": "simple",
+            \                 "required": [["file", "w"]]}
 lockvar! s:g.c
 unlockvar! s:g.reg.registered
 for s:key in keys(s:g.au.events)
@@ -1559,6 +1673,9 @@ function s:F.mng.main(action, ...)
                     \((len(args)>2)?
                     \   (join(args[3:])):
                     \   (0)))
+    "{{{5 mksession
+    elseif action==#"mksession"
+        call s:F.ses.mksession(args[1])
     endif
     "}}}4
 endfunction
@@ -1611,6 +1728,8 @@ let s:g.comp.a.actions.autocmd={"model": "simple",
             \               "arguments": [s:g.comp.event, s:g.comp.plug]}
 let s:g.comp.a.actions["autocmd!"]={"model": "simple",
             \                   "arguments": [s:g.comp.event, s:g.comp.plug]}
+let s:g.comp.a.actions.mksession={"model": "simple",
+            \                 "arguments": [["file", '.vim']]}
 let s:g.comp._cname="load"
 "{{{1
 let s:g.reginfo=s:F.reg.register({
@@ -1625,7 +1744,7 @@ let s:g.reginfo=s:F.reg.register({
             \   "scriptfile": s:g.load.scriptfile,
             \      "oneload": 1,
             \"dictfunctions": s:g.comm.f,
-            \   "apiversion": "0.2",
+            \   "apiversion": "0.4",
         \})
 lockvar! s:g.reginfo
 let s:F.main.eerror=s:g.reginfo.functions.eerror
@@ -1634,6 +1753,7 @@ unlet s:g.load
 " let s:F.plug.comp=s:F.comm.getfunctions("comp")
 let s:F.plug.comp=s:F.comm.lazyload("comp")
 let s:F.plug.stuf=s:F.comm.lazyload("stuf")
+let s:F.plug.yaml=s:F.comm.lazyload("yaml")
 lockvar! s:F
 unlockvar s:F.plug
 unlockvar s:F.comp
