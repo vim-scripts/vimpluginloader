@@ -30,6 +30,7 @@ elseif !exists("s:g.pluginloaded")
                 \["dict", [[["equal", "preserve_locks"], ["bool", ""]],
                 \          [["equal", "key_sort"], ["or", [["bool", ""],
                 \                                          ["isfunc", 1]]]],
+                \          [["equal", "all_flow"], ["bool", ""]],
                 \          [["equal", "custom_tags"],
                 \           ["allst", ["isfunc", 1]]]]],
                 \{}, {}]
@@ -94,7 +95,7 @@ elseif !exists("s:g.pluginloaded")
     "{{{2 Регистрация дополнения
     let s:F.plug.load=load#LoadFuncdict()
     let s:g.reginfo=s:F.plug.load.registerplugin({
-                \"apiversion": "0.0",
+                \"apiversion": "0.1",
                 \"sid": s:g.scriptid,
                 \"funcdict": s:F,
                 \"globdict": s:g,
@@ -317,6 +318,7 @@ let s:g.p={
             \                "for the tag %s",
             \     "fscript": "@|Unable to get script function “%s”",
             \      "fundef": "@|Function “%s” does not exist",
+            \    "finvname": "@|String “%s” is not a valid function name",
             \        "fnum": "@|Cannot find function with number “%u”",
             \      "ualias": "While constructing a vim list@|".
             \                "found unknown locked alias “%s”",
@@ -746,7 +748,7 @@ endfunction
 function s:F.load.Mark.get_snippet(...)
     let indent=get(a:000, 0, 4)
     let max_length=get(a:000, 1, &columns)
-    if self.buffer==#[]
+    if empty(self.buffer)
         return ""
     endif
     let head=""
@@ -829,8 +831,8 @@ function s:F.load.Reader.get_mark()
 endfunction
 "{{{4 load.Reader.update_raw (self + ([UInt])) -> _
 function s:F.load.Reader.update_raw(...)
-    let size=4096
-    if a:000!=[]
+    let size=128
+    if !empty(a:000)
         let size=a:000[0]
     endif
     " self.read(size)
@@ -884,7 +886,7 @@ function s:F.load.Reader.update(length)
 endfunction
 "{{{4 load.Reader.peek :: (self + ([UInt])) -> Maybe Char
 function s:F.load.Reader.peek(...)
-    if a:000==[]
+    if empty(a:000)
         let index=0
     else
         let index=a:000[0]
@@ -900,7 +902,7 @@ endfunction
 "{{{4 load.Reader.prefix :: (self + ([UInt])) -> String
 function s:F.load.Reader.prefix(...)
     let length=1
-    if a:000!=[]
+    if !empty(a:000)
         let length=a:000[0]
     endif
     if (self.pointer+length)>=len(self.buffer)
@@ -911,7 +913,7 @@ endfunction
 "{{{4 load.Reader.forward :: (self + ([UInt])) -> _
 function s:F.load.Reader.forward(...)
     let length=1
-    if a:000!=[]
+    if !empty(a:000)
         let length=a:000[0]
     endif
     if (self.pointer+length+1)>=len(self.buffer)
@@ -998,8 +1000,8 @@ endfunction
 "{{{5 load.Scanner.check_token :: (self + (Class*)) -> Bool
 function s:F.load.Scanner.check_token(...)
     call self.more_tokens()
-    if self.tokens!=[]
-        if a:000==[]
+    if !empty(self.tokens)
+        if empty(a:000)
             return 1
         endif
         for choice in a:000
@@ -1018,7 +1020,7 @@ endfunction
 "{{{5 load.Scanner.get_token :: (self + ()) -> token
 function s:F.load.Scanner.get_token()
     call self.more_tokens()
-    if self.tokens!=[]
+    if !empty(self.tokens)
         let self.tokens_taken+=1
         return remove(self.tokens, 0)
     endif
@@ -1029,7 +1031,7 @@ function s:F.load.Scanner.need_more_tokens()
     if self.done
         return 0
     endif
-    if self.tokens==[]
+    if empty(self.tokens)
         return 1
     endif
     call self.stale_possible_simple_keys()
@@ -1294,7 +1296,7 @@ function s:F.load.Scanner.fetch_key()
     let selfname='Scanner.fetch_key'
     if !self.flow_level
         if !self.allow_simple_key
-            call self.__raise(selfname, "scanner", "mnotall")
+            call self._raise(selfname, "Scanner", "mnotall", 0, self.get_mark())
         elseif self.add_indent(self.column)
             let mark=self.get_mark()
             call add(self.tokens, s:F.plug.oop.getinstance(
@@ -1720,7 +1722,7 @@ function s:F.load.Scanner.scan_block_scalar(style)
         if self.column==indent && self.peek()!=#""
             if folded && line_break==#"\n" && leading_non_space &&
                         \self.peek()!~#'^['.s:g.yaml.whitespace.']$'
-                if breaks==[]
+                if empty(breaks)
                     call add(chunks, ' ')
                 endif
             else
@@ -1920,7 +1922,7 @@ function s:F.load.Scanner.scan_flow_scalar_spaces(double, start_mark)
         let breaks=self.scan_flow_scalar_breaks(a:double, a:start_mark)
         if line_break!=#"\n"
             call add(chunks, line_break)
-        elseif breaks==[]
+        elseif empty(breaks)
             call add(chunks, ' ')
         endif
         call extend(chunks, breaks)
@@ -1994,7 +1996,7 @@ function s:F.load.Scanner.scan_plain()
         let end_mark=self.get_mark()
         unlet spaces
         let spaces=self.scan_plain_spaces(indent, start_mark)
-        if type(spaces)!=type([]) || spaces==[] || self.peek()==#'#' ||
+        if type(spaces)!=type([]) || empty(spaces) || self.peek()==#'#' ||
                     \(!self.flow_level && self.column<indent)
             break
         endif
@@ -2034,7 +2036,7 @@ function s:F.load.Scanner.scan_plain_spaces(indent, start_mark)
         endwhile
         if line_break!=#"\n"
             call add(chunks, line_break)
-        elseif breaks==[]
+        elseif empty(breaks)
             call add(chunks, " ")
         endif
         call extend(chunks, breaks)
@@ -2095,7 +2097,7 @@ function s:F.load.Scanner.scan_tag_uri(name, start_mark)
         call add(chunks, self.prefix(length))
         call self.forward(length)
     endif
-    if chunks==[]
+    if empty(chunks)
         call self._raise(selfname, "Scanner",
                     \    [((istag)?("ntaguri"):("ndiruri")), ch],
                     \    a:start_mark, self.get_mark())
@@ -2165,7 +2167,7 @@ endfunction
 function s:F.load.Parser.check_event(...)
     call self.set_current_event()
     if has_key(self, "current_event") && self.current_event.__class__!=#"None"
-        if a:000==[]
+        if empty(a:000)
             return 1
         endif
         for choice in a:000
@@ -2280,7 +2282,7 @@ function s:F.load.Parser.process_directives()
     while self.check_token("DirectiveToken")
         let token=self.get_token()
         if token.name==#"YAML"
-            if self.yaml_version!=[]
+            if !empty(self.yaml_version)
                 call self._raise(selfname, "Parser", "multYAML", 0,
                             \    token.start_mark)
             endif
@@ -2351,7 +2353,7 @@ function s:F.load.Parser.parse_node(block, indentless_sequence)
                 let anchor=token.value
             endif
         endif
-        if tag!=[]
+        if !empty(tag)
             let [handle, suffix]=tag
             unlet tag
             if handle!=#""
@@ -2746,7 +2748,7 @@ function s:F.load.BaseResolver.check_resolver_prefix(depth, path, kind,
 endfunction
 "{{{4 load.BaseResolver.descent_resolver :: (self + (node, index)) -> _
 function s:F.load.BaseResolver.descent_resolver(current_node, current_index)
-    if self.yaml_path_resolvers==[]
+    if empty(self.yaml_path_resolvers)
         return 0
     endif
     let exact_paths={}
@@ -2767,7 +2769,7 @@ function s:F.load.BaseResolver.descent_resolver(current_node, current_index)
     else
         let idx=0
         for [path, kind] in self.yaml_path_resolver_ids
-            if path==[]
+            if empty(path)
                 let exact_paths[kind]=self.yaml_path_resolvers[idx]
             else
                 call add(prefix_paths, [path, kind])
@@ -2780,7 +2782,7 @@ function s:F.load.BaseResolver.descent_resolver(current_node, current_index)
 endfunction
 "{{{4 load.BaseResolver.ascent_resolver :: (self + ()) -> _
 function s:F.load.BaseResolver.ascent_resolver()
-    if self.resolver_exact_paths==[]
+    if empty(self.resolver_exact_paths)
         return 0
     endif
     call remove(self.resolver_exact_paths, -1)
@@ -3198,7 +3200,7 @@ function s:F.load.SafeConstructor.flatten_mapping(node)
             let index+=1
         endif
     endwhile
-    if merge!=[]
+    if !empty(merge)
         let a:node.value=merge+a:node.value
     endif
 endfunction
@@ -3443,7 +3445,13 @@ function s:F.load.Constructor.construct_vim_function(node)
             call self._raise(selfname, "Constructor", ["fscript", value],
                         \    0, a:node.start_mark)
         endif
-        if exists('*'.value)
+        try
+            let fex=exists('*'.value)
+        catch /^Vim\%((\a\+)\)\=:E129/
+            call self._raise(selfname, "Constructor", ["finvname", value],
+                        \    0, a:node.start_mark)
+        endtry
+        if exists('fex') && fex
             return function(value)
         else
             call self._raise(selfname, "Constructor", ["fundef", value],
@@ -3599,7 +3607,7 @@ function s:F.load.prepare_cls_list(name, ...)
     if has_key(s:g.load, a:name)
         call s:F.plug.stuf.let(r, 2, s:g.load[a:name], {})
     endif
-    if a:000!=[]
+    if !empty(a:000)
         call s:F.plug.stuf.let(r, 3, a:000, {})
     endif
     return r
@@ -3795,7 +3803,7 @@ let s:g.dump.disallowedstart=
             \(s:g.yaml.wslbr).
             \(s:g.yaml.flowindicator).
             \(s:g.yaml.comment).
-            \'"'''
+            \'"''!&*\-|?>%@'
 let s:g.dump.disallowedp=
             \(s:g.yaml.flowindicator).
             \(s:g.yaml.linebreak).
@@ -3806,7 +3814,7 @@ let s:g.dump.disallowedend=
 let s:g.dump.jyspecials=["null",  "Null",  "NULL",
             \            "false", "False", "FALSE",
             \            "true",  "True",  "TRUE",
-            \            '~']
+            \            '~', '=', '<<']
 let s:g.dump.escrev={
             \"\n": '\n',
             \"\\": '\\',
@@ -3822,13 +3830,14 @@ let s:g.dump.escrev={
 function s:F.dump.dumpstr(obj, r, dumped, opts, ...)
     "{{{4 Представление строки без ""
     let spstr=(a:obj=~#'^[0-9]' || index(s:g.dump.jyspecials, a:obj)!=-1)
-    if a:obj=~#'^['.s:g.dump.disallowedstart.']\@!'.
+    if !get(a:opts, "all_flow", 0) &&
+                \a:obj=~#'^['.s:g.dump.disallowedstart.']\@!'.
                 \'\%([:\-?]['.s:g.yaml.whitespace.']\)\@!'.
                 \'\%(['.s:g.dump.disallowedp.']\@!'.
                 \   '\%([:\-?]['.s:g.yaml.whitespace.']\)\@!'.
                 \   s:g.yaml.printchar.'\)\+'.
                 \'['.s:g.dump.disallowedend.']\@<!$' &&
-                \!(a:000!=[] && spstr)
+                \(empty(a:000) || !spstr)
         if spstr
             let a:r[-1].=" !!str"
         endif
@@ -3895,14 +3904,21 @@ function s:F.dump.dumpfun(obj, r, dumped, opts)
 endfunction
 "{{{3 dump.dumplst
 function s:F.dump.dumplst(obj, r, dumped, opts)
-    if a:obj==[]
+    if empty(a:obj)
         let a:r[-1].=" []"
         return a:r
     endif
     let indent=matchstr(a:r[-1], '^ *')
     let i=0
+    if get(a:opts, 'all_flow', 0)
+        call add(a:r, indent.'  [')
+    endif
     for l:Item in a:obj
-        call add(a:r, indent.'  -')
+        if get(a:opts, 'all_flow', 0)
+            call add(a:r, indent.'    ')
+        else
+            call add(a:r, indent.'  -')
+        endif
         let tobji=type(a:obj[i])
         let islocked=0
         if islocked('a:obj[i]') && get(a:opts, "preserve_locks", 0)
@@ -3911,8 +3927,14 @@ function s:F.dump.dumplst(obj, r, dumped, opts)
         endif
         call s:F.dump.dump(l:Item, a:r, a:dumped, a:opts, islocked)
         unlet l:Item
+        if get(a:opts, 'all_flow', 0)
+            let a:r[-1].=','
+        endif
         let i+=1
     endfor
+    if get(a:opts, 'all_flow', 0)
+        call add(a:r, indent.'  ]')
+    endif
     return a:r
 endfunction
 "{{{3 dump.dumpdct
@@ -3931,9 +3953,16 @@ function s:F.dump.dumpdct(obj, r, dumped, opts)
             call sort(keylist)
         endif
     endif
+    if get(a:opts, 'all_flow', 0)
+        call add(a:r, indent.'  {')
+    endif
     for key in keylist
         let l:Value=get(a:obj, key)
-        call add(a:r, indent.'  ')
+        if get(a:opts, 'all_flow', 0)
+            call add(a:r, indent.'    ')
+        else
+            call add(a:r, indent.'  ')
+        endif
         if islocked('a:obj[key]') && get(a:opts, "preserve_locks", 0)
             let a:r[-1].='!!vim/Locked'
         endif
@@ -3941,7 +3970,13 @@ function s:F.dump.dumpdct(obj, r, dumped, opts)
         let a:r[-1].=":"
         call s:F.dump.dump(l:Value, a:r, a:dumped, a:opts, 0)
         unlet l:Value
+        if get(a:opts, 'all_flow', 0)
+            let a:r[-1].=','
+        endif
     endfor
+    if get(a:opts, 'all_flow', 0)
+        call add(a:r, indent.'  }')
+    endif
     return a:r
 endfunction
 "{{{3 dump.dumpflt
@@ -4009,6 +4044,9 @@ function s:F.dump.dumps(obj, join, opts)
         let a:opts.custom_tags=[]
     endif
     call s:F.dump.dump(a:obj, r, {}, a:opts, 0)
+    if get(a:opts, 'all_flow', 0)
+        call filter(r, 'v:val[-1:]!=#" "')
+    endif
     return a:join ? join(r, "\n") : r
 endfunction
 "{{{2 mng: main
