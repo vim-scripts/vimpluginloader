@@ -479,9 +479,11 @@ endfunction
 "{{{2 main: eerror, destruct, session
 "{{{3 main.destruct: Выгрузить дополнение
 function s:F.main.destruct()
-    augroup LoadRegisterLoad
-        autocmd!
-    augroup END
+    for aug in ["LoadRegisterLoad", "LoadNewBuffer", "LoadDeleteBufferMappings"]
+        execute 'augroup '.aug
+            autocmd!
+        augroup END
+    endfor
     for f in keys(s:F.int)
         execute "delfunction ".f
     endfor
@@ -912,15 +914,27 @@ function s:F.maps.map(plugdict, mapname, options, mapstring, buffer)
         if           has_key(s:g.maps.created_buffer,curbuffer) &&
                     \has_key(s:g.maps.created_buffer[curbuffer],type) &&
                     \has_key(s:g.maps.created_buffer[curbuffer][type],
-                    \        a:mapstring)
+                    \        a:mapstring) &&
+                    \
+                    \s:g.maps.created_buffer[curbuffer][type][a:mapstring][1].
+                    \'/'.
+                    \s:g.maps.created_buffer[curbuffer][type][a:mapstring][0]
+                    \!=#a:plugdict.plid
             return s:F.main.eerror(selfname, "perm", ["ebmap", a:mapstring,
+                        \s:g.maps.created_buffer[curbuffer][type][a:mapstring]
+                        \[1].'/'.
                         \s:g.maps.created_buffer[curbuffer][type][a:mapstring]
                         \[0]])
         endif
     else
         if           has_key(s:g.maps.created_global,type) &&
-                    \has_key(s:g.maps.created_global[type], a:mapstring)
+                    \has_key(s:g.maps.created_global[type], a:mapstring) &&
+                    \
+                    \s:g.maps.created_global[type][a:mapstring][1].'/'.
+                    \s:g.maps.created_global[type][a:mapstring][0]
+                    \!=#a:plugdict.plid
             return s:F.main.eerror(selfname, "perm", ["egmap", a:mapstring,
+                        \s:g.maps.created_global[type][a:mapstring][1].'/'.
                         \s:g.maps.created_global[type][a:mapstring][0]])
         endif
     endif
@@ -992,7 +1006,7 @@ function s:F.maps.create(plugdict)
             let mapname=mapname[1:]
             let mapstring=leader.mapstring
         endif
-        call s:F.maps.map(mapname, options, mapstring, 1)
+        call s:F.maps.map(a:plugdict, mapname, options, mapstring, 1)
     endfor
     "{{{4 Добавление глобальных привязок
     for [mapname, mapstring] in items(gmaps)
@@ -1104,6 +1118,11 @@ function s:F.maps.delmappings(what)
             endfor
         endif
         "}}}5
+    "{{{4 Удаление привязок, связанных с удаляемым буфером
+    elseif type(a:what)==type("")
+        if has_key(s:g.maps.created_buffer, a:what)
+            unlet s:g.maps.created_buffer[a:what]
+        endif
     endif
     "}}}4
     return 1
@@ -1123,7 +1142,7 @@ function s:F.maps.newbuffer(buffer)
                     let mapname=mapname[1:]
                     let mapstring=leader.mapstring
                 endif
-                call s:F.maps.map(mapname, options, mapstring, 1)
+                call s:F.maps.map(plugdict, mapname, options, mapstring, 1)
             endfor
         endfor
     endfor
