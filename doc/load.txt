@@ -106,7 +106,7 @@ options in g:loadOptions dictionary (Note that it is a very bad idea).
                                    *load-func-LoadFuncdict* *LoadFuncdict()*
 This plugin provides only one global function: LoadFuncdict (prefix Load may 
 be altered, but this is a very bad idea). You can also use load#LoadFuncdict() 
-which loads the plugin and then calls LoadFuncdictbb(). This function returns 
+which loads the plugin and then calls LoadFuncdict(). This function returns 
 a dictionary with the following keys (each value is a function reference):
 
                                                   *load-func-registerplugin*
@@ -197,6 +197,35 @@ restoresession({filename})                        *load-func-restoresession*
         Restore additional session information stored by 
         |load-action-mksession|. Note that you should not call this function 
         by yourself, it should be used from session file only.
+
+There are also some convenience functions in autoload/load.vim file:
+
+load#LoadFuncdict([{plugname}[, {plugtype}]])          *load#LoadFuncdict()*
+        Calls |LoadFuncdict()|, loads the plugin if it is not defined. If the 
+        optional {plugname} argument is provided, then it calls 
+        |load-func-getfunctions|.
+
+load#Setoption({dictname}, {key}, {value}[, {extend}])    *load#Setoption()*
+        Sets the value of {key} in dictionary with name {dictname} to {value} 
+        if it is possible. If {extend} is given and is 1, then try to extend 
+        existing option instead of overwriting it. Some notes:
+        1. If variable {dictname} does not exist it will be created.
+        2. If variable {dictname} does not contain a dictionary, it will be 
+           reset to an empty dictionary without notice.
+        3. If {key} is locked, it will be unlocked without notice and will not 
+           be locked again.
+        4. If {extend} is given, but {key} cannot be extended with {value}, 
+           then it will be overwritten without notice.
+        5. If setting an option failed, then function will return 0, otherwise 
+           it will return a dictionary. No error will be echoed anyway.
+
+load#CreateDictFunction({arguments}, {body})     *load#CreateDictFunction()*
+        Creates a dictionary function with given arguments and body. The 
+        advantage of creating a dictionary function using this function is 
+        that created function will be unable to get access to script 
+        variables. For example, to create an |eval()| function that does not 
+        have access to script variables you should do the following call: >
+            let s:F.safeeval=load#CreateDictFunction("s", "return eval(a:s)")
 
 -----------------------------------------------------------------------------
 2.3. `Autocommands'                                      *load-autocommands*

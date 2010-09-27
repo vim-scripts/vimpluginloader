@@ -1942,7 +1942,7 @@ let s:g.reginfo=s:F.reg.register({
             \   "scriptfile": s:g.load.scriptfile,
             \      "oneload": 1,
             \"dictfunctions": s:g.comm.f,
-            \   "apiversion": "0.5",
+            \   "apiversion": "0.6",
         \})
 lockvar! s:g.reginfo
 let s:F.main.eerror=s:g.reginfo.functions.eerror
