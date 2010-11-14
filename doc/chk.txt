@@ -61,7 +61,9 @@ regex       Regex (correct regular expression)
 func        (a -> Bool) (any function that takes {argument} and
                          returns 1 or 0)
             Checks, whether function being supplied by {argument} as an 
-            {argument} returns true.
+            {argument} returns true. Note that this function must not echo any 
+            warnings using |:echoerr|: they will be captured by |:try| and 
+            check will fail.
                                                             *chk-check-type*
 type        Int (any integer from 0 to 5)
             Checks, whether type of {argument} is {checkargument}.
@@ -79,7 +81,9 @@ bool        _ (argument is ignored)
                                                             *chk-check-eval*
 eval        String (any correct expression)
             Checks, whether eval({checkargument}) is true. Inside this check 
-            a:Arg is set to {argument}.
+            a:Arg is set to {argument}. Note that evaluated expression must 
+            not echo any warnings using |:echoerr|: they will be captured by 
+            |:try| and check will fail.
                                                            *chk-check-keyof*
 keyof       Dictionary
             Checks, whether {argument} is a key of {checkargument}. {argument} 

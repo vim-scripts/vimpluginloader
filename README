@@ -4,14 +4,19 @@ This plugin provides the ability to autoload plugins on demand, create
 global functions and commands and extend mksession with plugin support.
 
 Features:
-    â Autoloading plugins on FuncUndefined event.
-    â Autoloading plugins when their command is called.
-    â Autoloading plugins when their mapping is used.
-    â Autoloading plugins when their functionality is required.
-    â Displaying plugins' status.
-    â Unloading and reloading plugins (useful for plugin developers).
-    â Searching for a function number through registered plugins.
-    â Checking function arguments before running a function.
-    â Create a session file with plugin's data.
+     Autoloading plugins on FuncUndefined event.
+     Autoloading plugins when their command is called.
+     Autoloading plugins when their mapping is used.
+     Autoloading plugins when their functionality is required.
+     Displaying plugins' status.
+     Unloading and reloading plugins (useful for plugin developers).
+     Searching for a function number through registered plugins.
+     Checking function arguments before running a function.
+     Create a session file with plugin's data.
 
-Documentation: http://kp-pav.narod2.ru/vim/doc/load.txt.html
+Documentation: http://vimpluginloader.sourceforge.net/doc/load.txt.html
+Project page: http://sourceforge.net/projects/vimpluginloader
+Dependencies (you do not need to install them by yourself, see installation details):
+vimscript #3187, http://sourceforge.net/projects/vimargumentchec
+vimscript #3188, http://sourceforge.net/projects/vimcompcrtr
+vimscript #3190, http://sourceforge.net/projects/yamlvim

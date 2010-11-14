@@ -44,7 +44,7 @@ elseif !exists("s:g.pluginloaded")
                 \          "sid": s:g.load.sid,
                 \   "scriptfile": s:g.load.scriptfile,
                 \   "apiversion": "0.5",
-                \     "requires": [["load", '0.0']],
+                \     "requires": [["load", '0.6']],
             \})
     let s:F.main._eerror=s:g.reginfo.functions.eerror
     "}}}2
@@ -125,7 +125,8 @@ let s:g.p={
             \    "topt": "Too many optional arguments",
             \   "tslst": "Too short list: expected at least %u, but got %u",
             \   "tllst": "Too long list: expected at most %u, but got %u",
-            \   "eexpr": "Expression resulted in error",
+            \   "eexpr": "Expression resulted in error: %s",
+            \   "efunc": "Running function failed with error “%s”",
             \   "evalf": "Eval failed",
             \    "chkf": "Check #%u failed",
             \    "chks": "Check #%u succeed, but some previous check failed",
@@ -727,8 +728,6 @@ let s:g.achk.simplechecks={
             \"regex": ["type(a:Arg)==type('') && a:Arg=~#a:Chk",
             \          "['nreg', s:F.stuf.string(a:Chk)], ".
             \          "s:F.stuf.string(a:Arg)"],
-            \ "func": ["!!call(a:Chk, [a:Arg], {})",
-            \          "['nfunc', s:F.stuf.string(a:Chk)]"],
             \ "type": ["type(a:Arg)==a:Chk",
             \          "['type'], type(a:Arg).'≠'.a:Chk"],
             \ "bool": ["index([0, 1], a:Arg)!=-1", "['bool']"],
@@ -750,13 +749,25 @@ for s:C in keys(s:g.achk.simplechecks)
                 \"endfunction"
 endfor
 unlet s:C
+"{{{3 achk.func:
+let s:F.achk._call=load#CreateDictFunction('Chk, Arg',
+            \'return !!call(a:Chk, [a:Arg], {})')
+function s:F.achk.func(Chk, Arg)
+    let selfname="achk.func"
+    try
+        return !!s:F.achk._call(a:Chk, a:Arg)
+    catch
+        return s:F.main.eerror(selfname, "chk", ["efunc", v:exception])
+    endtry
+endfunction
 "{{{3 achk.eval:
+let s:F.achk._eval=load#CreateDictFunction('chk, Arg', 'return eval(a:chk)')
 function s:F.achk.eval(chk, Arg)
     let selfname="achk.eval"
     try
-        return !!eval(a:chk)
+        return !!s:F.achk._eval(a:chk, a:Arg)
     catch
-        return s:F.main.eerror(selfname, "chk", ["eexpr"], v:exception)
+        return s:F.main.eerror(selfname, "chk", ["eexpr", v:exception])
     endtry
 endfunction
 "{{{3 achk.map
@@ -1151,7 +1162,8 @@ let s:g.achk.chkchecks={
             \    "var": ["type(l:Chk)==type('')", s:g.p.emsg.str            ],
             \   "file": ["type(l:Chk)==type('')", s:g.p.emsg.str            ],
             \  "keyof": ["type(l:Chk)==type({})", s:g.p.emsg.dict           ],
-            \   "func": ["type(l:Chk)==2",        s:g.p.emsg.func           ],
+            \   "func": ["s:F.achk.isfunc(1, l:Chk)",
+            \                                     s:g.p.emsg.func           ],
             \   "type": ["type(l:Chk)==type(0) && l:Chk>=0 && l:Chk<=5",
             \                                     s:g.p.emsg.int            ],
             \ "isfunc": ["type(l:Chk)==type(0) && (l:Chk==1 || l:Chk==0)",
