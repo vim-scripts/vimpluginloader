@@ -53,7 +53,7 @@ elseif !exists("s:g.pluginloaded")
                 \          "sid": s:g.scriptid,
                 \   "scriptfile": s:g.load.scriptfile,
                 \"dictfunctions": s:g.chk.f,
-                \   "apiversion": "0.5",
+                \   "apiversion": "0.6",
                 \     "requires": [["load", '0.7'],
                 \                  ["chk",  '0.3'],
                 \                  ["stuf", '0.0']],
@@ -173,57 +173,98 @@ function s:F.mod.pref(comp, s)
         endif
     endif
     let larg=len(a:s.arguments)
-    if has_key(a:comp, "prefix")
+    if has_key(a:comp, "prefix") || has_key(a:comp, "altpref")
         let preflist=get(a:comp, 'preflist', [])
         let allowtrun=get(a:comp, 'allowtrun', 1) && empty(preflist)
-        let prefomit={}
         let omitpresent=get(a:comp, 'omitpresent', 1)
+        let altpref=get(a:comp, 'altpref', [])
+        let prefdict=get(a:comp, 'prefix', {})
+        let hasaltpref=!empty(altpref)
+        let chk=keys(prefdict)+altpref
+        let prefomit={}
         let args=a:s.arguments
         let largs=len(args)
         let prevprefidx=-1
         let lastprefidx=0
         let inlistprefix=0
+        let isaltpref=0
         while lastprefidx<largs
             let prevprefidx=lastprefidx
-            if omitpresent
-                let pref=args[lastprefidx]
-                if allowtrun
-                    let pref=s:F.stuf.gettrun(pref, a:comp.prefix)
+            let pref=args[lastprefidx]
+            if allowtrun
+                let fullpref=s:F.stuf.gettrun(pref, chk)
+                if empty(fullpref) && hasaltpref && pref[:1]==#'no'
+                    let fullpref=s:F.stuf.gettrun(pref[2:], altpref)
+                    if !empty(fullpref)
+                        let isaltpref=2
+                    else
+                        let isaltpref=0
+                    endif
+                else
+                    let isaltpref=0
                 endif
-                if !empty(pref)
-                    let prefomit[pref]=1
-                endif
+                let pref=fullpref
+            elseif index(chk, pref)==-1 && pref[:1]==#'no' &&
+                        \index(altpref, pref[2:])
+                let pref=pref[2:]
+                let isaltpref=2
+            else
+                let isaltpref=0
             endif
-            if index(preflist, args[lastprefidx])==-1
-                let lastprefidx+=2
-                let inlistprefix=0
+            if omitpresent && !empty(pref)
+                let prefomit[pref]=1
+            endif
+            if !isaltpref
+                let isaltpref=(index(altpref, pref)!=-1)
+                if !has_key(prefdict, pref)
+                    let lastprefidx+=1
+                    let inlistprefix=0
+                elseif index(preflist, pref)==-1
+                    let lastprefidx+=2
+                    let inlistprefix=0
+                else
+                    let lastprefidx+=1
+                    let inlistprefix=1
+                    let arg=get(args, lastprefidx)
+                    while lastprefidx<largs &&
+                                \(!has_key(prefdict, arg) ||
+                                \ (hasaltpref && arg[:1]==#'no' &&
+                                \  index(altpref, arg[2:])==-1))
+                        let lastprefidx+=1
+                        unlet arg
+                        let arg=get(args, lastprefidx)
+                    endwhile
+                    unlet arg
+                endif
             else
                 let lastprefidx+=1
-                let inlistprefix=1
-                while lastprefidx<largs &&
-                            \!has_key(a:comp.prefix, args[lastprefidx])
-                    let lastprefidx+=1
-                endwhile
+                let inlistprefix=0
             endif
         endwhile
-        let prefixes=filter(keys(a:comp.prefix), '!has_key(prefomit, v:val)')
+        let prefixes=keys(prefdict)+
+                    \filter(copy(altpref), '!has_key(prefdict, v:val)')
+        call filter(prefixes, '!has_key(prefomit, v:val)')
         let pref=args[prevprefidx]
         if allowtrun
-            let pref=s:F.stuf.gettrun(pref, a:comp.prefix)
+            let fullpref=s:F.stuf.gettrun(pref, prefdict)
+            if empty(fullpref) && hasaltpref && pref[:1]==#'no'
+                let fullpref=s:F.stuf.gettrun(pref[2:], altpref)
+            endif
+            let pref=fullpref
         endif
-        if inlistprefix
-            return ((has_key(a:comp.prefix, pref))?
-                        \(s:F.comp.getlist(a:comp.prefix[pref],
-                        \                  a:s.arguments[-1])):
-                        \([]))+
-                        \s:F.comp.toarglead(a:s.arguments[-1], prefixes)
-        else
-            if prevprefidx==largs-1
-                return s:F.comp.toarglead(a:s.arguments[-1], prefixes)
-            elseif has_key(a:comp.prefix, pref)
-                return s:F.comp.getlist(a:comp.prefix[pref], a:s.arguments[-1])
+        let result=[]
+        if inlistprefix || isaltpref || prevprefidx==largs-1
+            let result+=s:F.comp.toarglead(a:s.arguments[-1], prefixes)
+            if hasaltpref
+                let result+=map(filter(copy(prefixes),
+                            \          'index(altpref, v:val)!=-1'),
+                            \   '"no".v:val')
             endif
         endif
+        if has_key(prefdict, pref)
+            let result+=s:F.comp.getlist(prefdict[pref], a:s.arguments[-1])
+        endif
+        return result
     endif
     return []
 endfunction
@@ -641,6 +682,7 @@ call add(s:g.chk.model,  [["hkey", "model"],
             \                       [["equal", "escape"], ["in", [0, 1, 2]]],
             \                       [["equal", "allowtrun"], ["bool", ""]],
             \                       [["equal", "preflist"], s:g.chk.preflist],
+            \                       [["equal", "altpref"],  s:g.chk.preflist],
             \                       [["equal", "omitpresent"], ["bool", ""]],
             \                      ]]])
 let s:g.chk.f[0][2].required[1]=s:g.chk.model

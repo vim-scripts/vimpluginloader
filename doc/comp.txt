@@ -79,6 +79,7 @@ pref                                                       *comp-model-pref*
                        preflist :: [{prefix}]
                        omitpresent :: Bool
                        allowtrun :: Bool
+                       altpref :: [{prefix}]
         Defines a completion for command that takes a list of arguments, 
         followed by prefixed arguments. Example: >
             Command print columns 3
@@ -92,7 +93,10 @@ pref                                                       *comp-model-pref*
         `omitpresent' describes whether completion of already present prefixes 
         should be omitted. Key `preflist' lists prefixes that can take 
         multiple values. Key `allowtrun' describes whether prefixes can be 
-        truncated (they can by default).
+        truncated (they can by default). Key `altpref' lists `alternating' 
+        prefixes (prefixes that can appear either as `prefix', `noprefix' or 
+        `prefix value' (latter is possible only if it is present in `prefix' 
+        key)).
                           *comp-model-inputactions* *comp-model-inputsimple*
                               *comp-model-inputwords* *comp-model-inputpref*
 input{model}                                              *comp-model-input*
