@@ -113,6 +113,18 @@ let s:g.p={
             \    "ofail": "OperationFailed",
             \      "req": "RequirementsUnsatisfied",
             \},
+            \"c": {
+            \   "preffunc": "Regarg dictionary must either have both fprefix ".
+            \               "and functions keys or don't have them at all",
+            \   "prefcomm": "Regarg dictionary must either have both cprefix ".
+            \               "and commands keys or don't have them at all",
+            \     "reqkey": "One of required keys is not present",
+            \    "intmaps": "Invalid mappings dictionary",
+            \   "plugtype": "Plugin type not found",
+            \   "funclist": "Invalid function list",
+            \     "dflist": "Invalid dictfunctions list",
+            \    "regdict": "Invalid registration dictionary",
+            \},
             \"th": ["Type", "Name", "File", "Status"],
             \"nfnd": "Not found",
         \}
@@ -820,21 +832,21 @@ let s:g.c.comdict=[[["equal", "nargs" ],   ["or", [["in", ['*',
             \                                 '^custom\(list\)\=,s:.*']]]],
             \        [["equal", "func"], ["regex", s:g.c.reg.rf]]]
 "{{{5 s:g.c.register
-let s:g.c.intmaps=["dict", [[["regex", '^\(+\)\@!'],
-            \                  ["and", [["hkey", "function"],
-            \                           ["dict", [[["equal", "function"],
-            \                                      ["regex", s:g.c.reg.rf]],
-            \                                     [["equal", "default"],
-            \                                      ["type", type("")]],
-            \                                     [["equal", "silent"],
-            \                                      ["bool", ""]],
-            \                                     [["equal", "leader"],
-            \                                      ["bool", ""]],
-            \                                     [["equal", "type"],
-            \                                      ["keyof",
-            \                                       s:g.maps.mapcommands]]]]]
-            \                  ]]]]
-let s:g.c.plugtype=["keyof", s:g.reg.plugtypes]
+let s:g.c.intmaps=["dict", [[["regex", '^+\@!'],
+            \                ["and", [["hkey", "function"],
+            \                         ["dict", [[["equal", "function"],
+            \                                    ["regex", s:g.c.reg.rf]],
+            \                                   [["equal", "default"],
+            \                                    ["type", type("")]],
+            \                                   [["equal", "silent"],
+            \                                    ["bool", ""]],
+            \                                   [["equal", "leader"],
+            \                                    ["bool", ""]],
+            \                                   [["equal", "type"],
+            \                                    ["keyof",
+            \                                     s:g.maps.mapcommands]]]]]
+            \                ]]], s:g.p.c.intmaps]
+let s:g.c.plugtype=["keyof", s:g.reg.plugtypes, s:g.p.c.plugtype]
 let s:g.c.funclist=["alllst",
             \       ["optlst", [[["regex", s:g.c.reg.tf],
             \                    ["regex", s:g.c.reg.rf]],
@@ -847,20 +859,22 @@ let s:g.c.funclist=["alllst",
             \                             ["chklst",
             \                              [["regex", '%\.'],
             \                               ["regex", '%\.'],
-            \                               ["regex", '%\.']]]]]]]]]]
+            \                               ["regex", '%\.']]]]]]]]],
+            \       s:g.p.c.funclist]
 let s:g.c.dfunclist=deepcopy(s:g.c.funclist)
 let s:g.c.dfunclist[1][1][0][0]=["type", type("")]
+let s:g.c.dfunclist[2]=s:g.p.c.dflist
 let s:g.c.register=["and", [
             \["map", ["hkey", ["oprefix",
             \                  "funcdict",
             \                  "globdict",
             \                  "sid",
             \                  "scriptfile",
-            \                  "apiversion",]]],
+            \                  "apiversion",]],  s:g.p.c.reqkey],
             \["allorno", [["hkey", "fprefix"],
-            \             ["hkey", "functions"]]],
+            \             ["hkey", "functions"]], s:g.p.c.preffunc],
             \["allorno", [["hkey", "cprefix"],
-            \             ["hkey", "commands"]]],
+            \             ["hkey", "commands" ]], s:g.p.c.prefcomm],
             \["dict", [
             \   [["equal", "dictfunctions"], s:g.c.dfunclist],
             \   [["equal", "fprefix"],  ["regex", s:g.c.reg.func]],
@@ -888,7 +902,7 @@ let s:g.c.register=["and", [
             \                                       [s:g.c.plugtype]]]]],
             \   [["equal", "leader"],     ["type", type("")]],
             \   [["any", ''], ["any", '']],
-            \ ]
+            \ ], s:g.p.c.regdict
             \],
         \]]
 "{{{3 reg.unreg:     Удалить команды и функции

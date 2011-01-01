@@ -235,6 +235,40 @@ load#CreateDictFunction({arguments}, {body})     *load#CreateDictFunction()*
         variables. For example, to create an |eval()| function that does not 
         have access to script variables you should do the following call: >
             let s:F.safeeval=load#CreateDictFunction("s", "return eval(a:s)")
+<                                                             *load#Setup()*
+load#Setup({apiversion}[, {oprefix}[, {cprefix}[, {fprefix}[, {oneload}]]]])
+        Does some common plugin setup actions:
+        1. Creates s:F, s:F.plug and s:F.main dictionaries, populates 
+           s:F.plug.load with load plugin functions.
+        2. Creates s:g and s:g._load dictionaries, sets s:g._pluginloaded to 
+           {oneload} (or 0), populates _load dictionary with the following 
+           keys:
+           Key         Description ~
+           funcdict    See |load-reg-funcdict|
+           globdict    See |load-reg-globdict|
+           sid         See |load-reg-sid|
+           scriptfile  See |load-reg-scriptfile|
+           apiversion  {apiversion}, see |load-reg-apiversion|
+           oprefix     If {oprefix} is defined and is a string, then 
+                       {oprefix}, otherwise root (|%:r|) of the filename with 
+                       invalid characters removed. See |load-reg-oprefix|.
+           cprefix     If {cprefix} is defined and is a string, then 
+                       {cprefix}. If {cprefix} is 1 then `oprefix' with first 
+                       letter capitalized, if it is not defined or is 0 then 
+                       `cprefix' is not defined at all.
+                       See |load-reg-cprefix|.
+           fprefix     Just like `cprefix', but using {fprefix} value.
+                       See |load-reg-fprefix|.
+           oneload     {oneload} or 0. See |load-reg-oneload|.
+        Example usage: >
+            if (exists("s:g._pluginloaded") && s:g._pluginloaded) ||
+                        \exists("g:fooOptions.DoNotLoad")
+                finish
+            elseif !exists("s:g._pluginloaded")
+                execute load#Setup('0.1', 1, 0, 1)
+                let s:g._load.functions=[["bar", "baz.bar", {}]]
+                let s:g.reginfo=s:F.plug.load.register(s:g._load)
+            endif
 
 -----------------------------------------------------------------------------
 2.3. `Autocommands'                                      *load-autocommands*
