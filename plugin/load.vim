@@ -1310,8 +1310,8 @@ lockvar! s:g.comm.cmdfargs
 "{{{3 comm.getcheck:     Создать строки проверки для аргументов функции
 function s:F.comm.getcheck(check, checkstr, plugdict)
     if !empty(a:check)
-        return "    let args=s:F.plug.chk.checkarguments(".a:checkstr.", ".
-                    \                                   "a:000)\n".
+        return "    let args=s:F.comm.run(s:F.plug.chk, 'checkarguments', ".
+                    \                     a:checkstr.", a:000)\n".
                     \"    if type(args)!=type([])\n".
                     \"        throw 'CheckFailed(".a:plugdict.type."/'.".
                     \                              a:plugdict.quotedname.'.'.
