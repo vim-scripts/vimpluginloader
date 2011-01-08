@@ -88,6 +88,12 @@ options in g:loadOptions dictionary (Note that it is a very bad idea).
 :LoadCommand nrof {fname}                                 *load-action-nrof*
             Display a number of function {fname}. {fname} must have the 
             following structure: /{plugname}/{pathToFunction}.
+:LoadCommand function {fname}                         *load-action-function*
+            Display a code of function {fname}, just like builtin |:function|. 
+            {fname} argument is described in |load-action-nrof|.
+:LoadCommand breakadd {fname}[ {line}]                *load-action-breakadd*
+            Set a breakpoint at line {line} (default 1) of a function {fname}. 
+            {fname} argument is described in |load-action-nrof|.
 :LoadCommand autocmd {event} {plugin} {command}        *load-action-autocmd*
             Create an `autocommand', see |load-autocommands|. For 
             a description of arguments see |load-func-autocmd|. Note that you 
