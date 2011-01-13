@@ -421,6 +421,7 @@ mappings :: {{MapName}: {MapOptions}}                    *load-reg-mappings*
         are reserved, they also must not start with `+') and values are 
         dictionaries with the following keys:
         Key       Description ~
+                                                         *load-map-function*
         function  String, which consist of alphanumeric characters, 
                   underscores and dots, where dot must not start or end the 
                   string or follow another dot. Required Dictionary function 
@@ -431,8 +432,10 @@ mappings :: {{MapName}: {MapOptions}}                    *load-reg-mappings*
                   sequence of keys which invoked it (mapping string) and 
                   buffer number, if it was mapping local to buffer or -1 if it 
                   was not.
+                                                          *load-map-default*
         default   String, defines a default {lhs} of the mapping. May be 
-                  overriden by g:{oprefix}Options._maps.
+                  overriden by |load-opt-_maps|.
+                                                             *load-map-type*
         type      Char, defines a type of the mapping. Possible types and 
                   corresponding commands:
                   Type        Command ~
@@ -440,10 +443,51 @@ mappings :: {{MapName}: {MapOptions}}                    *load-reg-mappings*
                    !          noremap!
                   n, v, x, s, o, i, l, c
                               {Type}noremap
+                                                           *load-map-silent*
         silent    Bool. If true, then <silent> argument is added to the map 
                   command.
+                                                           *load-map-leader*
         leader    Bool. If true, then either |load-reg-leader| or 
                   |load-opt-_leader| is prepended to the default mapping.
+                                                             *load-map-getc*
+        getc      String, just like in |load-map-function|. If it is present, 
+                  then before mapping is invoked, vimpluginloader will use 
+                  this function to obtain additional keys like this: it will 
+                  call this function with a dictionary and a key obtained from 
+                  user as arguments and check for return value: 0 means `abort 
+                  mapping' (unless this function previously returned 2; all 
+                  characters starting from the one that caused function to 
+                  return 0 are appended to value returned by 
+                  |load-map-function|); 1 means `character accepted, need more 
+                  characters'; 2 means `character accepted, use 'timeoutlen' 
+                  to obtain optional values' (invokes main mapping function 
+                  after 'timeoutlen' microseconds passed after last obtained 
+                  character); 3 means `character accepted, no more characters 
+                  needed' (invokes |load-map-function| immediately). 
+                  Dictionary is preserved for the current key sequence, so 
+                  this function must store its `static' variables there. If 
+                  this key is present, then this dictionary will be the fifth 
+                  argument to |load-map-function|. This dictionary is 
+                  initialized with the following keys:
+                  Key      Description ~
+                  type     Type (|load-map-type|) of the mapping (first 
+                           argument of |load-map-function| without getc).
+                  name     Name (key of |load-reg-mappings| dictionary) of the 
+                           mapping (second argument of |load-map-function| 
+                           without getc).
+                  string   Sequence of keys which was used to invoke the 
+                           mapping (third argument of |load-map-function| 
+                           without getc).
+                  buffer   Buffer number (if the mapping is local to buffer) 
+                           or -1 (if mapping is global) (fourth argument of 
+                           |load-map-function| without getc).
+                  self     Reference to getc function itself.
+                  Note that in order to work correctly, this option requires 
+                  |+float| and |+reltime| features. In case they are absent, 
+                  plugin works like if 'timeout' was unset.
+                                                          *load-map-nochars*
+        nochars   If it is present, then mappings that use getc also accept 
+                  zero length additional string.
 leader :: String                                           *load-reg-leader*
         Defines the mapping leader.
 sid :: String                                            *load-reg-scriptid*

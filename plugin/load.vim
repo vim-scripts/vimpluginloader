@@ -816,7 +816,11 @@ let s:g.c.intmaps=["dict", [[["regex", '^+\@!'],
             \                                    ["bool", ""]],
             \                                   [["equal", "type"],
             \                                    ["keyof",
-            \                                     s:g.maps.mapcommands]]]]]
+            \                                     s:g.maps.mapcommands]],
+            \                                   [["equal", "getc"],
+            \                                    ["regex", s:g.c.reg.rf]],
+            \                                   [["equal", "nochars"],
+            \                                    ["any", ""]]]]]
             \                ]]], s:g.p.c.intmaps]
 let s:g.c.plugtype=["keyof", s:g.reg.plugtypes, s:g.p.c.plugtype]
 let s:g.c.funclist=["alllst",
@@ -1051,8 +1055,62 @@ function s:F.maps.run(type, mapstring, buffer)
     if plugdict.status!=#"loaded"
         call s:F.comm.load(plugname, plugtype)
     endif
-    return call(eval("plugdict.F.".(mapoptions.function)),
-                \[a:type, mapname, a:mapstring, a:buffer], {})
+    if has_key(mapoptions, 'getc')
+        let r   =   {"type":   a:type,
+                    \"name":     mapname,
+                    \"string": a:mapstring,
+                    \"buffer": a:buffer,
+                    \"self":   eval("plugdict.F.".(mapoptions.getc))}
+        if &timeout && has("float") && has("reltime")
+            let timeout=&timeoutlen/1000.0
+            let time=reltime()
+        endif
+        let laststatus=((has_key(mapoptions, "nochars"))?(2):(1))
+        if laststatus==2
+            let last2=[0, deepcopy(r)]
+        endif
+        let chars=[]
+        let prevstatus=0
+        while ((exists("time"))?
+                    \(eval(reltimestr(reltime(time)))<timeout):
+                    \(1))
+            if getchar(1)
+                let char=getchar()
+                if type(char)==type(0)
+                    let char=nr2char(char)
+                endif
+                call add(chars, char)
+                let prevstatus=laststatus
+                let laststatus=r.self(r, char)
+                if laststatus==2
+                    let last2=[len(chars), deepcopy(r)]
+                elseif laststatus==0
+                    break
+                else
+                    if exists("last2")
+                        unlet last2
+                    endif
+                    if laststatus==3
+                        break
+                    endif
+                endif
+                if exists("time")
+                    let time=reltime()
+                endif
+            else
+                sleep 50m
+            endif
+        endwhile
+        let addchars=""
+        if exists("last2") && len(chars)>last2[0]
+            let addchars.=join(chars[last2[0]:], "")
+        endif
+        return call(eval("plugdict.F.".(mapoptions.function)),
+                    \[a:type, mapname, a:mapstring, a:buffer, r], {}).addchars
+    else
+        return call(eval("plugdict.F.".(mapoptions.function)),
+                    \[a:type, mapname, a:mapstring, a:buffer], {})
+    endif
 endfunction
 "{{{3 maps.unmap
 function s:F.maps.unmap(plugname, plugtype, mapname, mapoptions, mapstring,
@@ -2138,7 +2196,7 @@ let s:g.reginfo=s:F.reg.register({
             \   "scriptfile": s:g.load.scriptfile,
             \      "oneload": 1,
             \"dictfunctions": s:g.comm.f,
-            \   "apiversion": "0.7",
+            \   "apiversion": "0.8",
         \})
 lockvar! s:g.reginfo
 let s:F.main.eerror=s:g.reginfo.functions.eerror
