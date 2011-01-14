@@ -161,6 +161,24 @@ registerplugin({regdict})
                             |chk-func-checkargument|. Throw an exception if 
                             check failed. Note that all option names starting 
                             with underscore are reserved.
+                                                              *load-f-bufdict*
+                        bufdict([{Constructor}[, {Destructor}]])
+                            Setup buffers dictionary: it is a dictionary where 
+                            keys are buffer numbers, use it if you want to 
+                            hide buffer-local variables from user. When a new 
+                            buffer is created, {Constructor} is called. If it 
+                            returns something different from 0, returned value 
+                            is assigned to the {bufdict}[{bufnr}], where 
+                            {bufdict} is created buffers dictionary. If it 
+                            returns 0 or {Constructor} itself is not 
+                            a function reference, then no new keys are created 
+                            in buffers dictionary. {Destructor} (if it is 
+                            a function reference) is called when buffer which 
+                            number is a key of a buffers dictionary gets 
+                            deleted, just before value is removed from it. 
+                            Both {Constructor} and {Destructor} are called 
+                            with buffer number and a buffers dictionary as 
+                            their arguments.
 
 unregister({plugname}[, {plugtype}])                  *load-func-unregister*
         Unregister plugin. For {plugname} and {plugtype} arguments see 

@@ -11,6 +11,7 @@ endif
 let s:F={
             \"plug": {},
             \"cons": {},
+            \"_cons":{},
             \"stuf": {},
             \"main": {},
             \ "mng": {},
@@ -150,7 +151,7 @@ call map(["n", "v", "x", "s", "o", "i", "l", "c"],
             \'extend(s:g.maps.mapcommands, {(v:val): (v:val."noremap")})')
 lockvar 1 s:g.maps
 "{{{1 Функции
-"{{{2 cons: eerror, option
+"{{{2 cons: eerror, option, bufdict
 "{{{3 cons.eerror
 function s:F.cons.eerror(plugin, from, type, ...)
     let etype=((type(a:type)==type("") &&
@@ -355,6 +356,60 @@ function s:F.cons.option(plugin, option)
     "}}}4
     return retopt
 endfunction
+"{{{3 cons.bufdict
+function s:F.cons.bufdict(plugin, ...)
+    let selfname="cons.bufdict"
+    call add(a:plugin.bufdicts, [{}])
+    "{{{4 {Constructor}
+    if type(get(a:000, 0))==2 && exists('*a:1')
+        call add(a:plugin.bufdicts[-1], a:1)
+    else
+        call add(a:plugin.bufdicts[-1], 0)
+    endif
+    "{{{4 {Destructor}
+    if type(get(a:000, 1))==2 && exists('*a:2')
+        call add(a:plugin.bufdicts[-1], a:1)
+    else
+        call add(a:plugin.bufdicts[-1], 0)
+    endif
+    "}}}4
+    return a:plugin.bufdicts[-1][0]
+endfunction
+"{{{4 _cons.forallbufdicts
+function s:F._cons.forallbufdicts(f, bufnr)
+    for plugtype in keys(s:g.reg.registered)
+        for plugname in keys(s:g.reg.registered[plugtype])
+            for bufdictinfo in s:g.reg.registered[plugtype][plugname].bufdicts
+                call call(s:F._cons[a:f."bufdict"], [a:bufnr]+bufdictinfo, {})
+            endfor
+        endfor
+    endfor
+endfunction
+"{{{4 _cons.rmbufdict
+function s:F._cons.rmbufdict(bufnr, bufdicts, Constructor, Destructor)
+    if has_key(a:bufdicts, a:bufnr)
+        if type(a:Destructor)==2
+            call call(a:Destructor, [a:bufnr, a:bufdicts], {})
+        endif
+        unlet a:bufdicts[a:bufnr]
+    endif
+endfunction
+"{{{4 _cons.addbufdict
+function s:F._cons.addbufdict(bufnr, bufdicts, Constructor, Destructor)
+    let d={}
+    if type(a:Constructor)==2
+        let d.Val=call(a:Constructor, [a:bufnr, a:bufdicts], {})
+        if type(d.Val)!=type(0) || d.Val!=0
+            let a:bufdicts[a:bufnr]=d.Val
+        endif
+    endif
+endfunction
+"{{{4 aug LoadProcessBufdicts
+augroup LoadProcessBufdicts
+    autocmd!
+    autocmd BufWipeout * call s:F._cons.forallbufdicts('rm',  +expand('<abuf>'))
+    autocmd BufAdd     * call s:F._cons.forallbufdicts('add', +expand('<abuf>'))
+augroup END
 "{{{2 stuf: findnr, findpath, printtable, string, ...
 "{{{3 s:Eval: доступ к внутренним переменным
 " Внутренние переменные, в том числе s:F, недоступны в привязках
@@ -692,6 +747,7 @@ function s:F.reg.register(regdict)
                 \      "requires": {},
                 \"requnsatisfied": {},
                 \    "requiredby": {},
+                \      "bufdicts": [],
             \}
     if exists('*fnameescape')
         let entry.srccmd="source ".fnameescape(entry.file)
@@ -2196,7 +2252,7 @@ let s:g.reginfo=s:F.reg.register({
             \   "scriptfile": s:g.load.scriptfile,
             \      "oneload": 1,
             \"dictfunctions": s:g.comm.f,
-            \   "apiversion": "0.8",
+            \   "apiversion": "0.9",
         \})
 lockvar! s:g.reginfo
 let s:F.main.eerror=s:g.reginfo.functions.eerror
