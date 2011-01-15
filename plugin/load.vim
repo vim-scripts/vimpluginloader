@@ -368,7 +368,7 @@ function s:F.cons.bufdict(plugin, ...)
     endif
     "{{{4 {Destructor}
     if type(get(a:000, 1))==2 && exists('*a:2')
-        call add(a:plugin.bufdicts[-1], a:1)
+        call add(a:plugin.bufdicts[-1], a:2)
     else
         call add(a:plugin.bufdicts[-1], 0)
     endif
@@ -2041,7 +2041,7 @@ let s:g.c.cmd.actions.function={"model": "simple",
             \                "required": [s:g.c.plugfunc]}
 let s:g.c.cmd.actions.breakadd={"model": "optional",
             \                "required": [s:g.c.plugfunc],
-            \                "optional": [[["nums", "1"], {}, 1]]}
+            \                "optional": [[["nums", [1]], {}, 1]]}
 lockvar! s:g.c
 unlockvar! s:g.reg.registered
 for s:key in keys(s:g.au.events)
