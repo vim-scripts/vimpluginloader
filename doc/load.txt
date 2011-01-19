@@ -461,9 +461,16 @@ mappings :: {{MapName}: {MapOptions}}                    *load-reg-mappings*
                    !          noremap!
                   n, v, x, s, o, i, l, c
                               {Type}noremap
+                  In order to specify more then one type, just concatenate 
+                  characters. For example, to specify one mapping both for 
+                  visual and normal mode, use "nv".
                                                            *load-map-silent*
         silent    Bool. If true, then <silent> argument is added to the map 
                   command.
+                                                            *load-map-remap*
+        remap     If this key is present, then *map commands will be used 
+                  instead of *noremap commands when defining a mapping. See 
+                  |noremap| and |recursive_mapping|.
                                                            *load-map-leader*
         leader    Bool. If true, then either |load-reg-leader| or 
                   |load-opt-_leader| is prepended to the default mapping.
@@ -489,16 +496,14 @@ mappings :: {{MapName}: {MapOptions}}                    *load-reg-mappings*
                   initialized with the following keys:
                   Key      Description ~
                   type     Type (|load-map-type|) of the mapping (first 
-                           argument of |load-map-function| without getc).
+                           argument of |load-map-function|).
                   name     Name (key of |load-reg-mappings| dictionary) of the 
-                           mapping (second argument of |load-map-function| 
-                           without getc).
+                           mapping (second argument of |load-map-function|).
                   string   Sequence of keys which was used to invoke the 
-                           mapping (third argument of |load-map-function| 
-                           without getc).
+                           mapping (third argument of |load-map-function|).
                   buffer   Buffer number (if the mapping is local to buffer) 
                            or -1 (if mapping is global) (fourth argument of 
-                           |load-map-function| without getc).
+                           |load-map-function|).
                   self     Reference to getc function itself.
                   Note that in order to work correctly, this option requires 
                   |+float| and |+reltime| features. In case they are absent, 
