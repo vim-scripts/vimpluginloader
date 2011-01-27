@@ -147,6 +147,7 @@ let s:g.maps.mapcommands={
             \" ": "noremap",
             \"!": "noremap!",
         \}
+let s:g.maps.op={'args': [], 'mode': ""}
 call map(["n", "v", "x", "s", "o", "i", "l", "c"],
             \'extend(s:g.maps.mapcommands, {(v:val): (v:val."noremap")})')
 lockvar 1 s:g.maps
@@ -880,7 +881,10 @@ let s:g.c.intmaps=["dict", [[["regex", '^+\@!'],
             \                                   [["equal", "nochars"],
             \                                    ["any", ""]],
             \                                   [["equal", "remap"],
-            \                                    ["any", ""]]]]]
+            \                                    ["any", ""]],
+            \                                   [["equal", "operator"],
+            \                                    ["any", ""]],
+            \                                  ]]]
             \                ]]], s:g.p.c.intmaps]
 let s:g.c.plugtype=["keyof", s:g.reg.plugtypes, s:g.p.c.plugtype]
 let s:g.c.funclist=["alllst",
@@ -1116,8 +1120,30 @@ function s:F.maps.create(plugdict)
     "}}}4
     return 1
 endfunction
+"{{{3 s:Opfunc
+function s:Opfunc(...)
+    if a:0
+        setlocal operatorfunc=
+        if !empty(s:g.maps.op.args)
+            let args=remove(s:g.maps.op.args, 0, -1)
+            let args+=[a:1]
+            if s:g.maps.op.mode=~#"^[vV\<C-v>]"
+                let args+=[getpos("'<"), getpos("'>")]
+            else
+                let args+=[getpos("'["), getpos("']")]
+            endif
+            return call(s:F.maps.run, args, {})
+        endif
+    else
+        return matchstr(expand('<sfile>'), '\S\+$')
+    endif
+endfunction
+let s:F.int["s:Opfunc"]=function("s:Opfunc")
+let s:g.maps.op.func=s:Opfunc()
+lockvar!  s:g.maps.op.func
+lockvar 1 s:g.maps.op
 "{{{3 maps.run
-function s:F.maps.run(type, mapstring, buffer)
+function s:F.maps.run(type, mapstring, buffer, ...)
     "{{{4 Получение информации о привязке
     if a:buffer==-1
         let [plugname, plugtype, mapname, mapoptions]=
@@ -1126,13 +1152,25 @@ function s:F.maps.run(type, mapstring, buffer)
         let [plugname, plugtype, mapname, mapoptions]=
                     \   s:g.maps.created_buffer[a:buffer][a:type][a:mapstring]
     endif
+    "{{{4 operator
+    let operator=has_key(mapoptions, "operator")
+    if operator && !a:0
+        let &l:operatorfunc=s:g.maps.op.func
+        let s:g.maps.op.args=[a:type, a:mapstring, a:buffer]
+        let s:g.maps.op.mode=mode()
+        if mode()=~#"^[sS\<C-s>iR]"
+            return "\<C-o>g@"
+        else
+            return 'g@'
+        endif
+    endif
     "{{{4 Получение словаря дополнения
     let plugdict=s:F.comm.getpldict(plugname, plugtype)
     if plugdict.status!=#"loaded"
         call s:F.comm.load(plugname, plugtype)
     endif
     "}}}4
-    let args=[a:type, mapname, a:mapstring, a:buffer]
+    let args=[a:type, mapname, a:mapstring, a:buffer]+a:000
     let d={"F": eval("plugdict.F.".(mapoptions.function))}
     "{{{4 Получение дополнительных символов
     if has_key(mapoptions, 'getc')
@@ -1143,6 +1181,9 @@ function s:F.maps.run(type, mapstring, buffer)
                     \"string": a:mapstring,
                     \"buffer": a:buffer,
                     \  "self": eval("plugdict.F.".(mapoptions.getc))}
+        if a:0
+            let a.mottype=a:1
+        endif
         "{{{6 timeout: максимальное время ожидания следующего символа
         if &timeout && has("float") && has("reltime")
             let timeout=&timeoutlen/1000.0
@@ -1190,6 +1231,7 @@ function s:F.maps.run(type, mapstring, buffer)
         "{{{5 «Лишние» символы
         if exists("last2") && len(chars)>last2[0]
             let addchars=join(chars[last2[0]:], "")
+            let a=last2[1]
         endif
         call add(args, a)
     endif
@@ -2290,7 +2332,7 @@ let s:g.reginfo=s:F.reg.register({
             \   "scriptfile": s:g.load.scriptfile,
             \      "oneload": 1,
             \"dictfunctions": s:g.comm.f,
-            \   "apiversion": "0.9",
+            \   "apiversion": "0.10",
         \})
 lockvar! s:g.reginfo
 call extend(s:F.main, s:g.reginfo.functions)
