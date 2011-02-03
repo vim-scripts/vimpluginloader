@@ -179,6 +179,20 @@ registerplugin({regdict})
                             Both {Constructor} and {Destructor} are called 
                             with buffer number and a buffers dictionary as 
                             their arguments.
+                                                            *load-f-autocmd*
+                        autocmd({AuG-suffix}, {event}, {pattern}, {command}[, 
+                                {nested}])
+                            Create a new autocommand, see |:au|. {event} may 
+                            be a |List| of events, {AuG-suffix} is an 
+                            autocommand group suffix (with length limited to 
+                            sixteen characters, may be empty), other arguments 
+                            are self-explanatory after you read |:au|. Returns 
+                            name of autocmd group (which is currently 
+                            "LoadPlugin_{plugname}{N}[_{AuG-suffix}]") or 0 if 
+                            creation fails. No errors are echoed or thrown. If 
+                            {command} is a function reference, then this 
+                            function will be called with <amatch>, <abuf> (as 
+                            a number) and <afile> in arguments.
 
 unregister({plugname}[, {plugtype}])                  *load-func-unregister*
         Unregister plugin. For {plugname} and {plugtype} arguments see 

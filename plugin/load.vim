@@ -408,12 +408,54 @@ function s:F._cons.addbufdict(bufnr, bufdicts, Constructor, Destructor)
         endif
     endif
 endfunction
-"{{{4 aug LoadProcessBufdicts
-augroup LoadProcessBufdicts
-    autocmd!
-    autocmd BufWipeout * call s:F._cons.forallbufdicts('rm',  +expand('<abuf>'))
-    autocmd BufAdd     * call s:F._cons.forallbufdicts('add', +expand('<abuf>'))
-augroup END
+"{{{3 cons.autocmd
+function s:F.cons.autocmd(plugin, aug_suffix, events, pattern, Command, ...)
+    let events=[]
+    if type(a:events)==type("")
+        call add(events, a:events)
+    elseif type(a:events)==type([])
+        call extend(events, a:events)
+    endif
+    call filter(events, 'type(v:val)=='.type("").' && stridx(v:val, "#")==-1 '.
+                \       '&& exists("##".v:val)')
+    if empty(events) || type(a:pattern)!=type("") ||
+                \type(a:aug_suffix)!=type("") || a:aug_suffix!~#'^\w\{,16}$'
+        return 0
+    endif
+    let pattern=escape(a:pattern, ' ')
+    let aukey=max(keys(a:plugin.autocommands))+1
+    let command=""
+    if type(a:Command)==2
+        if exists('*a:Command')
+            let intfpref=a:plugin.intprefix.'.autocommands.'.aukey.'.Command'
+            let command.="call call(".intfpref.', [expand("<amatch>"), '.
+                        \                         '+expand("<abuf>"), '.
+                        \                         'expand("<afile>")], {})'
+        else
+            return 0
+        endif
+    elseif type(a:Command)==type("")
+        let command.=a:Command
+    else
+        return 0
+    endif
+    let a:plugin.autocommands[aukey]={
+                \'Command': a:Command,
+                \ 'events':   events,
+                \'pattern':   pattern,
+                \ 'auargs': join(events, ',').' '.pattern.' '.
+                \           ((get(a:000, 0, 0))?('nested '):('')).
+                \           command,
+                \'augroup': a:plugin.augroup.((empty(a:aug_suffix))?
+                \                               (""):
+                \                               ("_".a:aug_suffix)),
+            \}
+    lockvar! a:plugin.autocommands[aukey]
+    execute 'augroup '.a:plugin.autocommands[aukey].augroup
+        execute 'autocmd '.a:plugin.autocommands[aukey].auargs
+    augroup END
+    return a:plugin.autocommands[aukey].augroup
+endfunction
 "{{{2 stuf: findnr, findpath, printtable, string, ...
 "{{{3 s:Eval: доступ к внутренним переменным
 " Внутренние переменные, в том числе s:F, недоступны в привязках
@@ -553,12 +595,6 @@ endfunction
 "{{{2 main: eerror, destruct, session
 "{{{3 main.destruct: Выгрузить дополнение
 function s:F.main.destruct()
-    for aug in ["LoadRegisterLoad", "LoadNewBuffer", "LoadDeleteBufferMappings",
-                \"LoadProcessBufdicts"]
-        execute 'augroup '.aug
-            autocmd!
-        augroup END
-    endfor
     for f in keys(s:F.int)
         execute "delfunction ".f
     endfor
@@ -634,17 +670,13 @@ let s:g.reg.plugtypes={
             \"/unknown": 0,
         \}
 let s:g.reg.registered=map(copy(s:g.reg.plugtypes), '{}')
+let s:g.reg.lastaugid=0
 lockvar!  s:g.reg.plugtypes
 lockvar!  s:g.reg.mapdict
 lockvar 1 s:g.reg.registered
 lockvar 1 s:g.reg
+unlockvar s:g.reg.lastaugid
 "{{{3 reg.regsource: Добавить запись о том, что дополнение загружено
-"{{{4 aug LoadRegisterLoad
-augroup LoadRegisterLoad
-    autocmd!
-    autocmd SourcePre * call s:F.reg.regsource(expand('<afile>:p'))
-augroup END
-"}}}4
 function s:F.reg.regsource(scriptname)
     silent let [plugname, plugtype, plugaddinfo, plugactinfo]=
                 \s:F.reg.parsepf(a:scriptname)
@@ -753,7 +785,11 @@ function s:F.reg.register(regdict)
                 \"requnsatisfied": {},
                 \    "requiredby": {},
                 \      "bufdicts": [],
+                \  "autocommands": {},
             \}
+    let s:g.reg.lastaugid+=1
+    let entry.augroup='LoadPlugin_'.substitute(entry.name[:63], '\W', '', 'g').
+                \     (s:g.reg.lastaugid)
     if exists('*fnameescape')
         let entry.srccmd="source ".fnameescape(entry.file)
     else
@@ -958,15 +994,6 @@ function s:F.reg.unreg(plugname, plugtype)
     unlet plugdict
 endfunction
 "{{{2 maps: create, delmappings
-"{{{3 autocommands
-augroup LoadDeleteBufferMappings
-    autocmd!
-    autocmd BufWipeout * call s:F.maps.delmappings(expand("<abuf>"))
-augroup END
-augroup LoadNewBuffer
-    autocmd!
-    autocmd BufAdd * call s:F.maps.newbuffer(expand("<abuf>"))
-augroup END
 "{{{3 maps.chkmap
 function s:F.maps.chkmap(buffer, type, mapstring, plid)
     if a:buffer
@@ -1437,7 +1464,7 @@ function s:F.comm.mkcmd(cmd, plugdict)
     "{{{4 Объявление переменных
     let cmdargs=[]
     let fargs=[]
-    let intfuncprefix=a:plugdict.intprefix.'.F'
+    let intfpref=a:plugdict.intprefix.'.F'
     let cmddescr=a:plugdict.commands[a:cmd]
     let cmd=s:F.cons.option(a:plugdict, '_cprefix').a:cmd
     "{{{4 Получение ключей для :command
@@ -1463,7 +1490,7 @@ function s:F.comm.mkcmd(cmd, plugdict)
                 \((a:plugdict.status==#"loaded")?
                 \   (""):
                 \   (a:plugdict.loadcmd." | ")).
-                \"call ".(intfuncprefix.".".(cmddescr.func)).
+                \"call ".(intfpref.".".(cmddescr.func)).
                 \"(".join(sort(fargs), ", ").")"
     "{{{4 Регистрация команды
     if a:plugdict.status==#"registered" ||
@@ -1533,14 +1560,13 @@ function s:F.comm.getfbody(fspec, fsource, fidx, plugdict)
     let intname=a:fspec[1]
     let  acheck=get(a:fspec, 2, {})
     let    with=get(a:fspec, 3, [])
-    let intfuncprefix=a:plugdict.intprefix.'.F'
+    let intfpref=a:plugdict.intprefix.'.F'
     let checkstr=a:plugdict.intprefix.'.'.a:fsource.'['.a:fidx.'][2]'
     let check=s:F.comm.getcheck(acheck, checkstr, a:plugdict)
     let [before, after]=s:F.comm.getwith(with, a:plugdict)
     return            (check).
                 \     (before).
-                \"        return call(".intfuncprefix.".".intname.", ".
-                \                    "args, s:F)\n".
+                \"        return call(".intfpref.".".intname.", args, s:F)\n".
                 \     (after)
 endfunction
 "{{{3 comm.mkfuncs
@@ -1579,7 +1605,7 @@ function s:F.comm.cdict(plugdict, from)
     if !has_key(a:plugdict, a:from)
         return {}
     endif
-    let intfuncprefix=a:plugdict.intprefix.'.F'
+    let intfpref=a:plugdict.intprefix.'.F'
     let r={}
     let i=0
     for fspec in a:plugdict[a:from]
@@ -1884,6 +1910,18 @@ function s:F.comm.unload(plugname, plugtype, saveses)
             call s:F.maps.delmappings(plugdict)
         endif
         call s:F.reg.unreg(plugdict.name, plugdict.type)
+        if !empty(plugdict.autocommands)
+            let removedaugs={}
+            let augs=map(values(plugdict.autocommands), 'v:val.augroup')
+            for aug in augs
+                if !has_key(removedaugs, aug)
+                    execute 'augroup '.aug
+                        autocmd!
+                    augroup END
+                    let removedaugs[aug]=1
+                endif
+            endfor
+        endif
         if has_key(plugdict, "F") && has_key(plugdict, "g")
             if has_key(plugdict.F, "main") &&
                         \has_key(plugdict.F.main, "destruct")
@@ -2332,10 +2370,20 @@ let s:g.reginfo=s:F.reg.register({
             \   "scriptfile": s:g.load.scriptfile,
             \      "oneload": 1,
             \"dictfunctions": s:g.comm.f,
-            \   "apiversion": "0.10",
+            \   "apiversion": "0.11",
         \})
 lockvar! s:g.reginfo
 call extend(s:F.main, s:g.reginfo.functions)
+call s:F.main.autocmd('ProcBufDicts', 'BufWipeout', '*',
+            \'call s:F._cons.forallbufdicts("rm",  +expand("<abuf>"))')
+call s:F.main.autocmd('ProcBufDicts', 'BufAdd',     '*',
+            \'call s:F._cons.forallbufdicts("add", +expand("<abuf>"))')
+call s:F.main.autocmd('RegisterLoad', 'SourcePre',  '*',
+            \'call s:F.reg.regsource(expand("<afile>:p"))')
+call s:F.main.autocmd('DelBufMaps',   'BufWipeout', '*',
+            \'call s:F.maps.delmappings(+expand("<abuf>"))')
+call s:F.main.autocmd('NewBuf',       'BufAdd',     '*',
+            \'call s:F.maps.newbuffer(+expand("<abuf>"))')
 unlet s:g.load
 " let s:F.plug.comp=s:F.comm.getfunctions("comp")
 let s:F.plug.comp=s:F.comm.lazyload("comp", "plugin", "dictfunctions")
